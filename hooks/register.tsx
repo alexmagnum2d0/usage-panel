@@ -16,8 +16,8 @@ const LIMIT_NAMES: Record<string, string> = {
 }
 const LIMIT_ORDER = ['five_hour', 'seven_day', 'spend_limit']
 
-const DAY = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' })
-const TIME = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' })
+const DAY = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' })
+const TIME = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
 type Item = { key: string; label: string; percent?: number; note?: string }
 
@@ -58,19 +58,19 @@ function resetNote(resetsAt: string | undefined, now: number) {
   if (!resetsAt) return undefined
   const at = Date.parse(resetsAt)
   if (!Number.isFinite(at)) return undefined
-  if (at <= now) return '(сброс сейчас)'
+  if (at <= now) return '(resets now)'
   const day = isSameDay(at, now) ? '' : `${DAY.format(at)} `
-  return `(сброс ${day}в ${TIME.format(at)})`
+  return `(resets ${day}at ${TIME.format(at)})`
 }
 
 function cacheItem(warmUntil: number | undefined, now: number): Item | undefined {
   if (warmUntil === undefined) return undefined
   const at = TIME.format(warmUntil)
   const ms = warmUntil - now
-  if (ms <= 0) return { key: 'cache', label: 'Cache', note: `истёк в ${at}` }
+  if (ms <= 0) return { key: 'cache', label: 'Cache', note: `expired at ${at}` }
   const minutes = Math.floor(ms / 60_000)
-  const left = minutes < 1 ? 'меньше минуты' : `${minutes}м`
-  return { key: 'cache', label: 'Cache', note: `ещё ${left} (до ${at})` }
+  const left = minutes < 1 ? '<1m' : `${minutes}m`
+  return { key: 'cache', label: 'Cache', note: `${left} left (until ${at})` }
 }
 
 async function warmUntil($: EngineInterface, ttlMs: number) {

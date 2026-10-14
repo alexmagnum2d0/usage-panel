@@ -3,7 +3,7 @@
 A Claude Code mod that keeps one line above the prompt with your context fill, plan limits and prompt-cache expiry:
 
 ```
-Context 58% · Session 36% (сброс в 23:30) · Weekly 81% (сброс 19 окт. в 01:00) · Cache ещё 13м (до 22:09)
+Context 58% · Session 36% (resets at 23:30) · Weekly 81% (resets Oct 19 at 01:00) · Cache 13m left (until 22:09)
 ```
 
 - **Context**: tokens in use against the auto-compact window, the same figure as the Context card in the desktop app.
@@ -31,7 +31,7 @@ Answer `y` to add the marketplace, then pick the **user** scope. The mod then lo
 ## Limitations
 
 - The cache time is an estimate: the engine does not report when the cache actually expires.
-- Labels and dates are in Russian.
+- Times are shown in 24-hour format, in your local time zone.
 - Built on the Claude Code mods API (early access, Claude Code 2.1.295); it may change between releases.
 
 ## Development

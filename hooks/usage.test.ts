@@ -50,7 +50,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     const ui = await $.ui.mount({ plugin: 'usage-panel', surface, ...BAND })
     expect((await ui.find({ key: 'usage-band' }))?.text).toBe(
-      'Context 58% · Session 36% (сброс в 23:30) · Weekly 81% (сброс 19 окт. в 01:00) · Cache ещё 60м (до 22:09)',
+      'Context 58% · Session 36% (resets at 23:30) · Weekly 81% (resets Oct 19 at 01:00) · Cache 60m left (until 22:09)',
     )
     expect(await ui.find({ type: 'Button' })).toBeUndefined()
     await ui.unmount()
@@ -70,7 +70,7 @@ test('subagent turns do not start the cache countdown, and it says when it lapse
   await $.turn.complete(TURN)
   await clock.set(NOW + 61 * 60_000)
   const later = await $.ui.mount({ plugin: 'usage-panel', surface: 'desktop', ...BAND })
-  expect((await later.find({ key: 'cache' }))?.text).toBe('Cache истёк в 22:09')
+  expect((await later.find({ key: 'cache' }))?.text).toBe('Cache expired at 22:09')
   await later.unmount()
 })
 
@@ -80,6 +80,6 @@ test('5-minute TTL from the mod settings', { options: { cacheTtl: '5m' } }, asyn
   await $.turn.complete(TURN)
 
   const ui = await $.ui.mount({ plugin: 'usage-panel', surface: 'desktop', ...BAND })
-  expect((await ui.find({ key: 'cache' }))?.text).toBe('Cache ещё 5м (до 21:14)')
+  expect((await ui.find({ key: 'cache' }))?.text).toBe('Cache 5m left (until 21:14)')
   await ui.unmount()
 })
