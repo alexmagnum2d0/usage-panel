@@ -1,0 +1,24 @@
+{
+  "name": "usage-panel",
+  "version": "0.3.0",
+  "description": "Band above the prompt with context, plan limits and prompt-cache expiry",
+  "author": {
+    "name": "alexmagnum2d0",
+    "url": "https://github.com/alexmagnum2d0"
+  },
+  "homepage": "https://github.com/alexmagnum2d0/usage-panel",
+  "repository": "https://github.com/alexmagnum2d0/usage-panel",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cacheTtl": {
+      "type": "string",
+      "title": "Prompt cache TTL",
+      "description": "How long the prompt cache lives after the last model response",
+      "default": "1h",
+      "options": [
+        "1h",
+        "5m"
+      ]
+    }
+  }
+}

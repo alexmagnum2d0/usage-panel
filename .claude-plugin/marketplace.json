@@ -1,0 +1,6 @@
+{
+  "name": "usage-panel",
+  "description": "Claude Code mod: context, plan limits and prompt-cache expiry above the prompt",
+  "owner": { "name": "alexmagnum2d0" },
+  "plugins": [{ "name": "usage-panel", "source": "./" }]
+}
