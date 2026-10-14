@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMeasureInput } from 'claude-code'
 
-import type { UsageSnapshot } from '../types'
+import type { UsageLimit, UsageSnapshot } from '../types'
 
 const usage = atom({ plugin: 'usage-panel', key: 'usage' } as const, null)
 const lastResponseAt = atom({ plugin: 'usage-panel', key: 'lastResponseAt' } as const, null)
@@ -20,6 +20,16 @@ const DAY = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' })
 const TIME = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' })
 
 type Item = { key: string; label: string; percent?: number; note?: string }
+
+// What the desktop app's get_usage tool answers: the account's limits as its
+// usage card shows them, and this session's context as the side panel does.
+type AppUsage = {
+  plan?: { status: string; windows?: { label: string; percentUsed: number; resetsAt?: string }[] }
+  context?: { status: string; tokensUsed?: number; contextWindow?: number; percentUsed?: number }
+}
+
+const APP_SERVER = 'ccd_session_mgmt'
+const APP_TOOL = 'get_usage'
 
 function snapshot(u: Omit<SessionMeasureInput, 'changed'>, compactWindow?: number): UsageSnapshot {
   const window = compactWindow ?? u.context.window
@@ -42,6 +52,49 @@ async function compactWindow($: EngineInterface) {
 async function refresh($: EngineInterface) {
   const next = snapshot(await $.session.usage(), await compactWindow($))
   await update($, usage, () => next)
+}
+
+function limitKind(label: string) {
+  if (label.startsWith('5-hour')) return 'five_hour'
+  if (label === 'Weekly · all models') return 'seven_day'
+  return undefined
+}
+
+function fromApp(prev: UsageSnapshot | null, app: AppUsage): UsageSnapshot | null {
+  const fresh: UsageLimit[] = []
+  if (app.plan?.status === 'ok') {
+    for (const w of app.plan.windows ?? []) {
+      const kind = limitKind(w.label)
+      if (kind) fresh.push({ kind, percentUsed: w.percentUsed, resetsAt: w.resetsAt })
+    }
+  }
+  const ctx = app.context?.status === 'ok' ? app.context : undefined
+  if (fresh.length === 0 && !ctx) return prev
+
+  const kept = (prev?.limits ?? []).filter(l => !fresh.some(f => f.kind === l.kind))
+  return {
+    contextTokens: ctx?.tokensUsed ?? prev?.contextTokens,
+    contextWindow: ctx?.contextWindow ?? prev?.contextWindow ?? 0,
+    contextPercent: ctx?.percentUsed ?? prev?.contextPercent,
+    limits: [...kept, ...fresh],
+    costUsd: prev?.costUsd,
+  }
+}
+
+// Plan limits are the account's, so other sessions move them too; the engine
+// only hears of that with this session's next response. The desktop app reads
+// them live. Resolves false where the app's server is not connected.
+async function pollApp($: EngineInterface) {
+  try {
+    const { content, isError } = await $.mcp.call(APP_SERVER, APP_TOOL, {})
+    const text = content.find(block => block.type === 'text')?.text
+    if (isError || text === undefined) return false
+    const app = JSON.parse(text) as AppUsage
+    await update($, usage, prev => fromApp(prev, app))
+    return true
+  } catch {
+    return false
+  }
 }
 
 function colorFor(percent: number) {
@@ -85,10 +138,29 @@ function redraw($: EngineInterface) {
 export const register: Register = (on, options) => {
   const ttlMs = TTL_MS[String(options.cacheTtl)] ?? TTL_MS['1h']!
 
+  let hasApp = true
+
   on('session.start', async ($, e, next) => {
     await refresh($)
+    hasApp = await pollApp($)
     $.ui.status(undefined)
-    $.clock.every(TICK_MS, () => redraw($))
+    $.clock.every(TICK_MS, () => {
+      void (async () => {
+        if (hasApp) hasApp = await pollApp($)
+        redraw($)
+      })()
+    })
+
+    return next(e)
+  })
+
+  // Each model response refreshes the cache: one that asks for a tool here,
+  // the turn's last one at turn.complete. Subagents keep caches of their own.
+  on('tool.call', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      const at = await $.clock.now()
+      await update($, lastResponseAt, () => at).catch(() => undefined)
+    }
 
     return next(e)
   })

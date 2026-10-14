@@ -1,6 +1,6 @@
 {
   "name": "usage-panel",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Band above the prompt with context, plan limits and prompt-cache expiry",
   "author": {
     "name": "alexmagnum2d0",

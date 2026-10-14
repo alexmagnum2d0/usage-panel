@@ -8,7 +8,9 @@ Context 58% · Session 36% (resets at 23:30) · Weekly 81% (resets Oct 19 at 01:
 
 - **Context**: tokens in use against the auto-compact window, the same figure as the Context card in the desktop app.
 - **Session / Weekly**: the 5-hour and weekly plan limits with their reset time (subscriptions only; a spend limit shows as **Spend**).
-- **Cache**: when the prompt cache goes cold, counted from the last main-thread model response.
+- **Cache**: when the prompt cache goes cold, counted from the last main-thread model response (each tool call mid-turn counts as one).
+
+In the desktop app the plan limits and context refresh every 30 seconds from the app's own usage data, so work in other sessions shows up too. Elsewhere they refresh with each model response of the session.
 
 Percentages turn yellow from 70% and red from 90%. The line works in the terminal and in the Code tab of the Claude desktop app.
 

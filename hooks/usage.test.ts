@@ -83,3 +83,87 @@ test('5-minute TTL from the mod settings', { options: { cacheTtl: '5m' } }, asyn
   expect((await ui.find({ key: 'cache' }))?.text).toBe('Cache 5m left (until 21:14)')
   await ui.unmount()
 })
+
+const appUsage = (session: number, weekly: number, context: number) => ({
+  plan: {
+    status: 'ok',
+    plan: 'Pro',
+    windows: [
+      { label: '5-hour limit', percentUsed: session, resetsAt: new Date(2026, 9, 14, 23, 30).toISOString() },
+      { label: 'Weekly · all models', percentUsed: weekly, resetsAt: new Date(2026, 9, 19, 1, 0).toISOString() },
+      { label: 'Weekly · Opus', percentUsed: 12 },
+    ],
+  },
+  context: { session: 'self', status: 'ok', tokensUsed: 231_601, contextWindow: 400_000, percentUsed: context },
+})
+
+test('plan limits and context refresh from the app every 30 seconds', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  let answer = appUsage(36, 81, 58)
+  const calls: string[] = []
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.usage', () => ({
+    value: { startedAt: NOW, context: { window: 1_000_000 }, rateLimits: [] },
+  }) as never)
+  on('mcp.call', (_$, e) => {
+    calls.push(`${e.server}/${e.tool}`)
+    return { value: { content: [{ type: 'text', text: JSON.stringify(answer) }], isError: false } }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ plugin: 'usage-panel', surface: 'desktop', ...BAND })
+  expect((await ui.find({ key: 'usage-band' }))?.text).toBe(
+    'Context 58% · Session 36% (resets at 23:30) · Weekly 81% (resets Oct 19 at 01:00)',
+  )
+
+  answer = appUsage(40, 82, 58)
+  await clock.advance(30_000)
+  expect((await ui.find({ key: 'limit-five_hour' }))?.text).toContain('Session 40%')
+  expect((await ui.find({ key: 'limit-seven_day' }))?.text).toContain('Weekly 82%')
+  expect(calls).toEqual(['ccd_session_mgmt/get_usage', 'ccd_session_mgmt/get_usage'])
+  await ui.unmount()
+})
+
+test('without the app the band keeps the engine figures and stops asking', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  let calls = 0
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('ui.status', () => ({ value: undefined }))
+  on('session.usage', () => ({
+    value: {
+      startedAt: NOW,
+      context: { tokens: 100_000, window: 200_000, percent: 50 },
+      rateLimits: [{ kind: 'five_hour', percentUsed: 10 }],
+    },
+  }) as never)
+  on('mcp.call', () => {
+    calls += 1
+    throw new Error('no such server')
+  })
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(90_000)
+  const ui = await $.ui.mount({ plugin: 'usage-panel', surface: 'terminal', ...BAND })
+  expect((await ui.find({ key: 'usage-band' }))?.text).toBe('Context 50% · Session 10%')
+  expect(calls).toBe(1)
+  await ui.unmount()
+})
+
+test('a tool call mid-turn moves the cache countdown, a subagent one does not', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'Box', props: { key: 'engine' } }))
+
+  await $.tool.call({ tool: 'Read', file_path: '/tmp/a', agentId: 'a1' } as never)
+  const none = await $.ui.mount({ plugin: 'usage-panel', surface: 'desktop', ...BAND })
+  expect(await none.find({ key: 'cache' })).toBeUndefined()
+  await none.unmount()
+
+  await $.tool.call({ tool: 'Read', file_path: '/tmp/a' })
+  await clock.advance(10 * 60_000)
+  await $.tool.call({ tool: 'Read', file_path: '/tmp/b' })
+  const ui = await $.ui.mount({ plugin: 'usage-panel', surface: 'desktop', ...BAND })
+  expect((await ui.find({ key: 'cache' }))?.text).toBe('Cache 60m left (until 22:19)')
+  await ui.unmount()
+})
